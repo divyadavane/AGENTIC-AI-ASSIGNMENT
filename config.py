@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ─── LLM Configuration ───────────────────────────────────────────────
-GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-DEFAULT_MODEL: str = "gemini-1.5-pro"
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+DEFAULT_MODEL: str = "llama-3.3-70b-versatile"
 
 # ─── LLM Call Parameters ─────────────────────────────────────────────
 LLM_TIMEOUT: int = 60            # seconds
@@ -35,9 +35,9 @@ LOG_DIR: str = "logs"
 # ─── Validation ───────────────────────────────────────────────────────
 def validate_config() -> None:
     """Validate that required configuration is present."""
-    if not GEMINI_API_KEY:
+    if not GROQ_API_KEY:
         raise ValueError(
-            "GEMINI_API_KEY is not set. "
-            "Copy .env.example to .env and add your Gemini API key.\n"
-            "Get a key at https://aistudio.google.com/"
+            "GROQ_API_KEY is not set. "
+            "Copy .env.example to .env and add your Groq API key.\n"
+            "Get a key at https://console.groq.com/"
         )

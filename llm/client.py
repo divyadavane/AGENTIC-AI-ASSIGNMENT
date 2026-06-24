@@ -1,5 +1,5 @@
 """
-Direct LLM API client for OpenRouter.
+Direct LLM API client for Groq.
 
 This module handles all communication with the LLM backend.
 NO SDKs or agent frameworks — raw HTTP calls via httpx.
@@ -27,7 +27,7 @@ class LLMClientError(Exception):
 
 class LLMClient:
     """
-    Async HTTP client for the OpenRouter chat completions API.
+    Async HTTP client for the Groq chat completions API.
 
     Usage:
         client = LLMClient()
@@ -41,30 +41,23 @@ class LLMClient:
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str | None = None,
         model: str | None = None,
         timeout: int | None = None,
     ):
-        self.api_key = api_key or config.OPENROUTER_API_KEY
-        self.base_url = base_url or config.OPENROUTER_BASE_URL
-        self.models = [model or config.DEFAULT_MODEL]
-        if hasattr(config, "FALLBACK_MODELS"):
-            self.models.extend(config.FALLBACK_MODELS)
-
+        self.api_key = api_key or config.GROQ_API_KEY
+        self.model = model or config.DEFAULT_MODEL
         self.timeout = timeout or config.LLM_TIMEOUT
 
         if not self.api_key:
             raise LLMClientError(
-                "No API key provided. Set OPENROUTER_API_KEY in your .env file."
+                "No API key provided. Set GROQ_API_KEY in your .env file."
             )
 
     def _build_headers(self) -> dict[str, str]:
-        """Construct request headers for OpenRouter API."""
+        """Construct request headers for Groq API."""
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/agentic-ai-system",
-            "X-Title": "Agentic AI System",
         }
 
     def _build_payload(
@@ -76,7 +69,7 @@ class LLMClient:
     ) -> dict:
         """Build the request payload for the chat completions endpoint."""
         return {
-            "model": self.models[0],  # Defaults to first model, overridden in methods
+            "model": self.model,
             "messages": messages,
             "temperature": temperature if temperature is not None else config.LLM_TEMPERATURE,
             "max_tokens": max_tokens or config.LLM_MAX_TOKENS,
@@ -90,19 +83,24 @@ class LLMClient:
         max_tokens: int | None = None,
     ) -> str:
         """
-        Make a non-streaming LLM call using g4f.
+        Make a non-streaming LLM call using httpx.
         """
-        try:
-            from g4f.client import AsyncClient
-            import g4f
-            client = AsyncClient()
-            response = await client.chat.completions.create(
-                model=g4f.models.default,
-                messages=messages,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            raise LLMClientError(f"g4f call failed: {e}")
+        payload = self._build_payload(messages, temperature, max_tokens, stream=False)
+        url = "https://api.groq.com/openai/v1/chat/completions"
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                response = await client.post(
+                    url, headers=self._build_headers(), json=payload
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                err_text = e.response.text
+                raise LLMClientError(f"Groq API error ({e.response.status_code}): {err_text}")
+            except Exception as e:
+                raise LLMClientError(f"Groq call failed: {e}")
 
     async def call_stream(
         self,
@@ -111,19 +109,38 @@ class LLMClient:
         max_tokens: int | None = None,
     ) -> AsyncGenerator[str, None]:
         """
-        Make a streaming LLM call using g4f.
+        Make a streaming LLM call using httpx and Server-Sent Events.
         """
-        try:
-            from g4f.client import AsyncClient
-            import g4f
-            client = AsyncClient()
-            response = await client.chat.completions.create(
-                model=g4f.models.default,
-                messages=messages,
-                stream=True
-            )
-            async for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-        except Exception as e:
-            raise LLMClientError(f"g4f stream failed: {e}")
+        payload = self._build_payload(messages, temperature, max_tokens, stream=True)
+        url = "https://api.groq.com/openai/v1/chat/completions"
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                async with client.stream(
+                    "POST", url, headers=self._build_headers(), json=payload
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            if not data_str:
+                                continue
+
+                            try:
+                                chunk = json.loads(data_str)
+                                choices = chunk.get("choices", [])
+                                if choices:
+                                    delta = choices[0].get("delta", {})
+                                    content = delta.get("content", "")
+                                    if content:
+                                        yield content
+                            except json.JSONDecodeError:
+                                continue
+            except httpx.HTTPStatusError as e:
+                await e.response.aread()
+                err_text = e.response.text
+                raise LLMClientError(f"Groq API error ({e.response.status_code}): {err_text}")
+            except Exception as e:
+                raise LLMClientError(f"Groq stream failed: {e}")

@@ -7,8 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from orchestrator.core import Orchestrator, DecompositionError
+from orchestrator.clarifier import Clarifier
 import config
 from main import _enable_mock_llm
+from pydantic import BaseModel
 
 app = FastAPI(title="Agentic AI API")
 
@@ -95,6 +97,24 @@ async def run_pipeline(
         raise HTTPException(status_code=400, detail="Task cannot be empty")
         
     return EventSourceResponse(pipeline_generator(task, mock))
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ClarifyRequest(BaseModel):
+    chat_history: list[ChatMessage]
+
+@app.post("/api/clarify")
+async def clarify_task(req: ClarifyRequest):
+    """Determine if task needs clarification or execution."""
+    if not req.chat_history:
+        raise HTTPException(status_code=400, detail="Chat history cannot be empty")
+        
+    clarifier = Clarifier()
+    history = [{"role": msg.role, "content": msg.content} for msg in req.chat_history]
+    result = await clarifier.evaluate(history)
+    return result.model_dump()
 
 if __name__ == "__main__":
     import uvicorn

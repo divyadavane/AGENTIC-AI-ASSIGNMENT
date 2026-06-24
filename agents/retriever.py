@@ -97,8 +97,8 @@ class RetrieverAgent(BaseAgent):
         try:
             from duckduckgo_search import DDGS
 
-            with DDGS() as ddgs:
-                results = list(ddgs.text(query, max_results=config.SEARCH_MAX_RESULTS))
+            ddgs = DDGS()
+            results = list(ddgs.text(query, max_results=config.SEARCH_MAX_RESULTS))
 
             if not results:
                 return None
@@ -139,6 +139,8 @@ class RetrieverAgent(BaseAgent):
         """Synchronous Wikipedia search wrapper."""
         try:
             import wikipedia
+
+            wikipedia.set_user_agent("AgenticAIAssignmentBot/1.0 (mailto:test@example.com)")
 
             # Search for matching articles
             search_results = wikipedia.search(query, results=3)

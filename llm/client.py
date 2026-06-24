@@ -47,7 +47,10 @@ class LLMClient:
     ):
         self.api_key = api_key or config.OPENROUTER_API_KEY
         self.base_url = base_url or config.OPENROUTER_BASE_URL
-        self.model = model or config.DEFAULT_MODEL
+        self.models = [model or config.DEFAULT_MODEL]
+        if hasattr(config, "FALLBACK_MODELS"):
+            self.models.extend(config.FALLBACK_MODELS)
+
         self.timeout = timeout or config.LLM_TIMEOUT
 
         if not self.api_key:
@@ -73,7 +76,7 @@ class LLMClient:
     ) -> dict:
         """Build the request payload for the chat completions endpoint."""
         return {
-            "model": self.model,
+            "model": self.models[0],  # Defaults to first model, overridden in methods
             "messages": messages,
             "temperature": temperature if temperature is not None else config.LLM_TEMPERATURE,
             "max_tokens": max_tokens or config.LLM_MAX_TOKENS,
@@ -87,48 +90,19 @@ class LLMClient:
         max_tokens: int | None = None,
     ) -> str:
         """
-        Make a non-streaming LLM call.
-
-        Args:
-            messages: Chat messages in OpenAI format [{role, content}, ...]
-            temperature: Sampling temperature (0.0 - 1.0)
-            max_tokens: Maximum tokens in the response
-
-        Returns:
-            The assistant's response text.
-
-        Raises:
-            LLMClientError: On HTTP errors, timeouts, or malformed responses.
+        Make a non-streaming LLM call using g4f.
         """
-        url = f"{self.base_url}/chat/completions"
-        payload = self._build_payload(messages, temperature, max_tokens, stream=False)
-
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                response = await client.post(
-                    url,
-                    headers=self._build_headers(),
-                    json=payload,
-                )
-                response.raise_for_status()
-            except httpx.TimeoutException as e:
-                raise LLMClientError(f"LLM request timed out after {self.timeout}s: {e}")
-            except httpx.HTTPStatusError as e:
-                raise LLMClientError(
-                    f"LLM API returned {e.response.status_code}: {e.response.text}"
-                )
-            except httpx.RequestError as e:
-                raise LLMClientError(f"LLM request failed: {e}")
-
-            data = response.json()
-
-            # Extract the assistant's message content
-            try:
-                return data["choices"][0]["message"]["content"]
-            except (KeyError, IndexError) as e:
-                raise LLMClientError(
-                    f"Unexpected LLM response format: {e}\nResponse: {json.dumps(data, indent=2)}"
-                )
+        try:
+            from g4f.client import AsyncClient
+            import g4f
+            client = AsyncClient()
+            response = await client.chat.completions.create(
+                model=g4f.models.default,
+                messages=messages,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            raise LLMClientError(f"g4f call failed: {e}")
 
     async def call_stream(
         self,
@@ -137,63 +111,19 @@ class LLMClient:
         max_tokens: int | None = None,
     ) -> AsyncGenerator[str, None]:
         """
-        Make a streaming LLM call, yielding tokens as they arrive via SSE.
-
-        This is the real streaming implementation — tokens are yielded
-        incrementally as the LLM generates them, not buffered and dumped.
-
-        Args:
-            messages: Chat messages in OpenAI format
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens in the response
-
-        Yields:
-            Individual text tokens/chunks as they arrive.
-
-        Raises:
-            LLMClientError: On HTTP errors or connection failures.
+        Make a streaming LLM call using g4f.
         """
-        url = f"{self.base_url}/chat/completions"
-        payload = self._build_payload(messages, temperature, max_tokens, stream=True)
-
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                async with client.stream(
-                    "POST",
-                    url,
-                    headers=self._build_headers(),
-                    json=payload,
-                ) as response:
-                    response.raise_for_status()
-
-                    # Parse SSE (Server-Sent Events) stream
-                    async for line in response.aiter_lines():
-                        # SSE format: each event is "data: {json}\n\n"
-                        if not line.startswith("data: "):
-                            continue
-
-                        data_str = line[6:]  # Strip "data: " prefix
-
-                        # Stream termination signal
-                        if data_str.strip() == "[DONE]":
-                            break
-
-                        try:
-                            data = json.loads(data_str)
-                            # Extract the delta content token
-                            delta = data.get("choices", [{}])[0].get("delta", {})
-                            token = delta.get("content")
-                            if token:
-                                yield token
-                        except (json.JSONDecodeError, IndexError, KeyError):
-                            # Skip malformed SSE chunks — don't crash the stream
-                            continue
-
-            except httpx.TimeoutException as e:
-                raise LLMClientError(f"LLM stream timed out: {e}")
-            except httpx.HTTPStatusError as e:
-                raise LLMClientError(
-                    f"LLM API returned {e.response.status_code} during stream"
-                )
-            except httpx.RequestError as e:
-                raise LLMClientError(f"LLM stream connection failed: {e}")
+        try:
+            from g4f.client import AsyncClient
+            import g4f
+            client = AsyncClient()
+            response = await client.chat.completions.create(
+                model=g4f.models.default,
+                messages=messages,
+                stream=True
+            )
+            async for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            raise LLMClientError(f"g4f stream failed: {e}")

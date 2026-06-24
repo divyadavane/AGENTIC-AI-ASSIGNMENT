@@ -285,6 +285,11 @@ def main() -> None:
         action="store_true",
         help="Run with a simulated failure to demonstrate error handling",
     )
+    parser.add_argument(
+        "--mock-llm",
+        action="store_true",
+        help="Use mock LLM responses to bypass rate limits during video recording",
+    )
 
     args = parser.parse_args()
 
@@ -307,6 +312,13 @@ def main() -> None:
             "The retriever agent will simulate a timeout on first attempt.\n"
         )
         _enable_failure_demo()
+
+    if args.mock_llm:
+        console.print(
+            "\n[bold green]✅ MOCK LLM MODE[/] — "
+            "Bypassing OpenRouter API to avoid rate limits.\n"
+        )
+        _enable_mock_llm()
 
     # Run the async pipeline
     asyncio.run(run_pipeline(task))
@@ -335,6 +347,56 @@ def _enable_failure_demo() -> None:
 
     RetrieverAgent.run = patched_run
 
+
+def _enable_mock_llm() -> None:
+    """Mock the LLM client to return hardcoded responses for demo purposes."""
+    from llm.client import LLMClient
+    
+    async def mock_call(self, messages, temperature=None, max_tokens=None):
+        # Return decomposition JSON if this is the orchestrator
+        return '''{ "steps": [
+            {"id": "step_1", "agent": "retriever", "instruction": "Search for electric vehicle market data.", "depends_on": []},
+            {"id": "step_2", "agent": "analyzer", "instruction": "Analyze the retrieved data to find key trends.", "depends_on": ["step_1"]},
+            {"id": "step_3", "agent": "writer", "instruction": "Write a 3-paragraph summary based on the analysis.", "depends_on": ["step_2"]}
+        ]}'''
+
+    async def mock_call_stream(self, messages, temperature=None, max_tokens=None):
+        mock_text = """### Abstractive Analysis & Synthesis
+
+Based on the aggregated data streams and sentiment cross-referencing, several core patterns have emerged regarding your query. The current regulatory frameworks and market dynamics show a distinct shift toward hybrid operational models.
+
+1. **Strategic Realignment**: Startups and enterprise sectors are rapidly adapting to new compliance measures by increasing their R&D investments in localized, private-cloud solutions.
+2. **Sentiment Shift**: Market sentiment has pivoted from cautious optimism to aggressive deployment, as recent funding rounds indicate high confidence in long-term scalability.
+
+In conclusion, the intersection of these data points suggests that companies prioritizing agility and automated compliance will maintain a significant competitive edge over the next 18 months."""
+        
+        import asyncio
+        for word in mock_text.split(" "):
+            yield word + " "
+            await asyncio.sleep(0.04)
+
+    LLMClient.call = mock_call
+    LLMClient.call_stream = mock_call_stream
+
+    # Also mock the retriever so it doesn't fail due to rate limits during the demo
+    from agents.retriever import RetrieverAgent
+    from models.schemas import StepStatus
+
+    original_run = RetrieverAgent.run
+
+    async def mock_retriever_run(self, step, context):
+        import time
+        import asyncio
+        await asyncio.sleep(1.5)  # Simulate search delay
+        mock_data = "=== Web Search Results ===\n1. Global EV Market Outlook 2025\nElectric vehicle sales are projected to reach 35% of total market share globally by 2025, driven by massive investments in charging infrastructure and dropping battery prices.\n\n2. Consumer Adoption Trends\nThe top factors driving EV adoption are: 1) Decreasing range anxiety, 2) Government tax incentives, and 3) Expanding public charging networks."
+        return self._make_result(
+            step,
+            StepStatus.SUCCESS,
+            output=mock_data,
+            start_time=time.time() - 1.5,
+        )
+
+    RetrieverAgent.run = mock_retriever_run
 
 if __name__ == "__main__":
     main()

@@ -123,6 +123,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
                     messages=messages,
                     temperature=0.2,  # Low temperature for structured output
                     max_tokens=2048,
+                    json_mode=True,
                 )
 
                 # Clean the response — some LLMs wrap JSON in markdown code blocks
@@ -157,23 +158,28 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
 
     def _clean_json_response(self, response: str) -> str:
         """
-        Strip markdown code fences and whitespace from LLM JSON responses.
-
-        Some models wrap JSON in ```json ... ``` blocks. This handles that.
+        Strip markdown code fences, conversational text, and whitespace from LLM JSON responses.
         """
+        import re
         text = response.strip()
 
-        # Remove markdown code block wrapper
-        if text.startswith("```"):
-            # Find the end of the opening fence line
-            first_newline = text.index("\n") if "\n" in text else len(text)
-            text = text[first_newline + 1:]
+        # Find the last JSON block that looks like the steps array
+        # Some models output multiple code blocks, the final one is usually the full object
+        json_blocks = re.findall(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+        if json_blocks:
+            # Prefer a block that has "steps" in it, otherwise take the last one
+            for block in reversed(json_blocks):
+                if '"steps"' in block:
+                    return block.strip()
+            return json_blocks[-1].strip()
 
-            # Remove closing fence
-            if text.endswith("```"):
-                text = text[:-3]
+        # Fallback: Find the first { and last }
+        start_idx = text.find('{')
+        end_idx = text.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            return text[start_idx:end_idx+1].strip()
 
-        return text.strip()
+        return text
 
     # ─── Pipeline Execution ──────────────────────────────────────────
 
@@ -333,6 +339,40 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
         with open(log_file, "w", encoding="utf-8") as f:
             for entry in self.log_entries:
                 f.write(entry.model_dump_json() + "\n")
+                
+    def save_history(self, task: str, final_output: str) -> None:
+        """Save a summary of the run to a persistent history file."""
+        self._flush_logs()
+        
+        history_file = os.path.join(config.LOG_DIR, "history.json")
+        history = []
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                pass
+                
+        # Calculate status and duration
+        status = "success"
+        if any(log.status == "failed" for log in self.log_entries):
+            status = "failed"
+            
+        total_duration = sum(log.duration_ms for log in self.log_entries)
+        
+        entry = {
+            "id": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "task": task,
+            "status": status,
+            "duration_ms": total_duration,
+            "output": final_output
+        }
+        
+        history.insert(0, entry) # Prepend newest
+        
+        with open(history_file, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
 
     def get_decomposition_steps(self) -> list[Step] | None:
         """Return the last decomposition steps (for display purposes)."""

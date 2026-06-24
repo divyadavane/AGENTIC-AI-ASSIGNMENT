@@ -49,7 +49,12 @@ class RetrieverAgent(BaseAgent):
         if ddg_result:
             results.append("=== Web Search Results ===\n" + ddg_result)
         else:
-            errors.append("DuckDuckGo search returned no results or failed")
+            errors.append("DuckDuckGo search returned no text results or failed")
+
+        # ─── Source 1b: DuckDuckGo Image Search ───────────────────────
+        ddg_images = await self._search_duckduckgo_images(query)
+        if ddg_images:
+            results.append("=== Related Images ===\n" + ddg_images)
 
         # ─── Source 2: Wikipedia ──────────────────────────────────────
         wiki_result = await self._search_wikipedia(query)
@@ -59,25 +64,15 @@ class RetrieverAgent(BaseAgent):
             errors.append("Wikipedia search returned no results or failed")
 
         # ─── Build result ─────────────────────────────────────────────
-        if results:
-            output = "\n\n".join(results)
-            return self._make_result(step, StepStatus.SUCCESS, output=output, start_time=start_time)
-        else:
-            # Both sources failed — return graceful degradation
-            error_msg = "; ".join(errors)
-            return self._make_result(
-                step,
-                StepStatus.FAILED,
-                output="No data could be retrieved. Downstream agents will work with limited context.",
-                error=error_msg,
-                start_time=start_time,
-            )
+        if not results:
+            results.append("No external data could be retrieved. Proceed with general knowledge.")
+            
+        output = "\n\n".join(results)
+        return self._make_result(step, StepStatus.SUCCESS, output=output, start_time=start_time)
 
     async def _search_duckduckgo(self, query: str) -> str | None:
         """
         Perform a DuckDuckGo text search and return top results as formatted text.
-
-        Runs in a thread executor because duckduckgo-search is synchronous.
         """
         try:
             result = await asyncio.wait_for(
@@ -96,9 +91,10 @@ class RetrieverAgent(BaseAgent):
         """Synchronous DuckDuckGo search wrapper."""
         try:
             from duckduckgo_search import DDGS
-
             ddgs = DDGS()
-            results = list(ddgs.text(query, max_results=config.SEARCH_MAX_RESULTS))
+            # Truncate query to 50 chars to avoid search engine rejection
+            short_query = query[:50] if len(query) > 50 else query
+            results = list(ddgs.text(short_query, max_results=config.SEARCH_MAX_RESULTS))
 
             if not results:
                 return None
@@ -109,6 +105,46 @@ class RetrieverAgent(BaseAgent):
                 body = r.get("body", "No snippet")
                 href = r.get("href", "")
                 formatted.append(f"{i}. [{title}]({href})\n   {body}")
+
+            return "\n\n".join(formatted)
+        except ImportError:
+            return None
+        except Exception:
+            return None
+
+    async def _search_duckduckgo_images(self, query: str) -> str | None:
+        """Perform a DuckDuckGo image search."""
+        try:
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None, self._ddg_sync_image_search, query
+                ),
+                timeout=config.RETRIEVER_TIMEOUT,
+            )
+            return result
+        except asyncio.TimeoutError:
+            return None
+        except Exception:
+            return None
+
+    def _ddg_sync_image_search(self, query: str) -> str | None:
+        """Synchronous DuckDuckGo image search wrapper."""
+        try:
+            from duckduckgo_search import DDGS
+            ddgs = DDGS()
+            # Truncate query to 50 chars to avoid search engine rejection
+            short_query = query[:50] if len(query) > 50 else query
+            results = list(ddgs.images(short_query, max_results=3))
+
+            if not results:
+                return None
+
+            formatted: list[str] = []
+            for r in results:
+                title = r.get("title", "Image")
+                image_url = r.get("image", "")
+                source_url = r.get("url", "")
+                formatted.append(f"Image Title: {title}\nImage URL: {image_url}\nSource: {source_url}")
 
             return "\n\n".join(formatted)
         except ImportError:

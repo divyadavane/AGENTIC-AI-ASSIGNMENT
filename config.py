@@ -13,7 +13,7 @@ load_dotenv()
 
 # ─── LLM Configuration ───────────────────────────────────────────────
 GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-DEFAULT_MODEL: str = "llama-3.3-70b-versatile"
+DEFAULT_MODEL: str = "llama-3.1-8b-instant"
 
 # ─── LLM Call Parameters ─────────────────────────────────────────────
 LLM_TIMEOUT: int = 60            # seconds

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Query, HTTPException
@@ -12,7 +13,7 @@ import config
 from main import _enable_mock_llm
 from pydantic import BaseModel
 
-app = FastAPI(title="Agentic AI API")
+app = FastAPI(title="Zyro")
 
 # Allow CORS for Next.js frontend
 app.add_middleware(
@@ -23,7 +24,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-async def pipeline_generator(task: str, mock: bool) -> AsyncGenerator[dict, None]:
+class Attachment(BaseModel):
+    type: str  # "image" or "text"
+    name: str
+    content: str  # base64 string or raw text
+
+class RunRequest(BaseModel):
+    task: str
+    mock: bool = False
+    attachments: list[Attachment] = []
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ClarifyRequest(BaseModel):
+    chat_history: list[ChatMessage]
+    attachments: list[Attachment] = []
+
+
+async def pipeline_generator(task: str, mock: bool, attachments: list[Attachment]) -> AsyncGenerator[dict, None]:
     """Generates SSE events for the pipeline execution."""
     
     if mock:
@@ -40,6 +60,9 @@ async def pipeline_generator(task: str, mock: bool) -> AsyncGenerator[dict, None
 
     orch = Orchestrator()
     
+    # Store attachments in the pipeline context for agents to read
+    orch.context["__attachments__"] = [a.model_dump() for a in attachments]
+
     # 1. Decomposition Phase
     yield {
         "event": "status",
@@ -67,18 +90,50 @@ async def pipeline_generator(task: str, mock: bool) -> AsyncGenerator[dict, None
         "data": json.dumps({"status": "executing", "message": "Executing agent pipeline..."})
     }
     
-    try:
-        async for result in orch.execute_pipeline(steps):
+    event_queue = asyncio.Queue()
+    orch.context["__event_queue__"] = event_queue
+    
+    async def run_pipeline_task():
+        try:
+            async for result in orch.execute_pipeline(steps):
+                await event_queue.put({"type": "result", "data": result})
+        except Exception as e:
+            await event_queue.put({"type": "error", "data": e})
+        finally:
+            await event_queue.put({"type": "done", "data": None})
+            
+    asyncio.create_task(run_pipeline_task())
+    
+    final_output = ""
+    while True:
+        event = await event_queue.get()
+        if event["type"] == "token":
+            yield {
+                "event": "token",
+                "data": json.dumps({"token": event["data"]})
+            }
+        elif event["type"] == "result":
+            result = event["data"]
+            if result.agent == "writer" and result.output:
+                final_output = result.output
             yield {
                 "event": "step_result",
                 "data": result.model_dump_json()
             }
+        elif event["type"] == "error":
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": f"Pipeline error: {event['data']}"})
+            }
+            break
+        elif event["type"] == "done":
+            break
+
+    # Save to history
+    try:
+        orch.save_history(task, final_output)
     except Exception as e:
-        yield {
-            "event": "error",
-            "data": json.dumps({"error": f"Pipeline error: {e}"})
-        }
-        return
+        print(f"Failed to save history: {e}")
 
     # 3. Finished
     yield {
@@ -87,34 +142,61 @@ async def pipeline_generator(task: str, mock: bool) -> AsyncGenerator[dict, None
     }
 
 
-@app.get("/api/run")
-async def run_pipeline(
-    task: str = Query(..., description="The task to execute"),
-    mock: bool = Query(False, description="Use mock LLM to avoid rate limits")
-):
+@app.get("/api/history")
+async def get_history():
+    """Retrieve the pipeline execution history."""
+    history_file = os.path.join(config.LOG_DIR, "history.json")
+    if not os.path.exists(history_file):
+        return []
+    try:
+        with open(history_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading history: {e}")
+
+
+@app.post("/api/run")
+async def run_pipeline(req: RunRequest):
     """Start the pipeline and stream results via SSE."""
-    if not task.strip():
-        raise HTTPException(status_code=400, detail="Task cannot be empty")
+    if not req.task.strip() and not req.attachments:
+        raise HTTPException(status_code=400, detail="Task and attachments cannot both be empty")
         
-    return EventSourceResponse(pipeline_generator(task, mock))
+    return EventSourceResponse(pipeline_generator(req.task, req.mock, req.attachments))
 
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-class ClarifyRequest(BaseModel):
-    chat_history: list[ChatMessage]
 
 @app.post("/api/clarify")
 async def clarify_task(req: ClarifyRequest):
     """Determine if task needs clarification or execution."""
-    if not req.chat_history:
+    if not req.chat_history and not req.attachments:
         raise HTTPException(status_code=400, detail="Chat history cannot be empty")
         
     clarifier = Clarifier()
     history = [{"role": msg.role, "content": msg.content} for msg in req.chat_history]
+    
+    # Inject attachments into the last message for the Clarifier to see
+    if req.attachments and history:
+        attachment_text = "\\n\\n[Attached Files]:\\n"
+        for att in req.attachments:
+            if att.type == "text":
+                attachment_text += f"- {att.name}:\\n{att.content}\\n"
+            else:
+                attachment_text += f"- {att.name} (Image attached)\\n"
+        history[-1]["content"] += attachment_text
+
     result = await clarifier.evaluate(history)
+    
+    # If not a question, append attachments text to the final task string so the decomposer can see them
+    if result.action == "execute" and req.attachments:
+        attachment_text = "\\n\\n[Attached Files]:\\n"
+        for att in req.attachments:
+            if att.type == "text":
+                attachment_text += f"- {att.name}:\\n{att.content}\\n"
+            else:
+                attachment_text += f"- {att.name} (Image attached)\\n"
+        result.task += attachment_text
+
     return result.model_dump()
+
 
 if __name__ == "__main__":
     import uvicorn

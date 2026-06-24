@@ -34,7 +34,7 @@ export default function Home() {
         </div>
 
         <h1 className="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-emerald-100 to-emerald-400 tracking-tight mb-6">
-          Agentic AI Orchestrator
+          Zyro
         </h1>
         
         <p className="text-lg md:text-xl text-slate-400 font-light mb-12 max-w-2xl leading-relaxed">
@@ -63,11 +63,18 @@ export default function Home() {
           </div>
         </form>
 
-        <div className="mt-12 flex gap-4 text-sm font-mono text-slate-500">
+        <div className="mt-12 flex gap-4 text-sm font-mono text-slate-500 items-center">
           <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Groq Llama-3</span>
           <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span> Multi-Agent</span>
           <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500"></span> Async Streams</span>
         </div>
+
+        <button 
+          onClick={() => router.push("/history")}
+          className="mt-8 text-sm text-slate-400 hover:text-emerald-400 transition-colors underline underline-offset-4 font-mono"
+        >
+          View Execution History
+        </button>
       </motion.div>
     </div>
   );

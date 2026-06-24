@@ -10,6 +10,7 @@ This agent always calls the LLM — it is the "thinking" agent in the pipeline.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from agents.base import BaseAgent
 from llm.client import LLMClient, LLMClientError
@@ -36,22 +37,38 @@ class AnalyzerAgent(BaseAgent):
         "Be thorough but concise. Use bullet points or numbered lists where appropriate."
     )
 
-    async def run(self, step: Step, context: dict[str, AgentResult]) -> AgentResult:
+    async def run(self, step: Step, context: dict[str, Any]) -> AgentResult:
         """
         Execute an analysis step.
 
         1. Gather outputs from dependency steps
         2. Build a prompt combining the instruction + dependency data
-        3. Call the LLM for analysis
-        4. Return the structured analysis
+        3. Inject any attached images into the multimodal payload
+        4. Call the LLM for analysis
         """
         start_time = time.time()
 
         # Gather context from prior steps
         dep_outputs = self._get_dependency_outputs(step, context)
 
-        # Build the user message
-        user_message = self._build_user_message(step.instruction, dep_outputs)
+        # Build the text part of the user message
+        user_text = self._build_user_message(step.instruction, dep_outputs)
+
+        # Check for attachments in the global pipeline context
+        attachments = context.get("__attachments__", [])
+        
+        if attachments:
+            # Format as a list of dicts for multimodal vision model
+            user_content = [{"type": "text", "text": user_text}]
+            for att in attachments:
+                if isinstance(att, dict) and att.get("type") == "image":
+                    user_content.append({
+                        "type": "image_url",
+                        "image_url": {"url": att.get("content")}
+                    })
+        else:
+            # Fall back to standard string if no attachments
+            user_content = user_text
 
         # Call the LLM
         try:
@@ -59,7 +76,7 @@ class AnalyzerAgent(BaseAgent):
             response = await client.call(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message},
+                    {"role": "user", "content": user_content},
                 ],
                 temperature=0.3,  # Lower temperature for analytical precision
             )

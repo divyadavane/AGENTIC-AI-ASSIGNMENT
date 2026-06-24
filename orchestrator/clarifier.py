@@ -46,17 +46,24 @@ Return a JSON object with this exact structure:
                 messages=messages,
                 temperature=0.2,
                 max_tokens=500,
+                json_mode=True,
             )
 
-            # Clean JSON block if wrapped
-            cleaned = response.strip()
-            if cleaned.startswith("```"):
-                first_newline = cleaned.index("\n") if "\n" in cleaned else len(cleaned)
-                cleaned = cleaned[first_newline + 1:]
-                if cleaned.endswith("```"):
-                    cleaned = cleaned[:-3]
+            import re
+            text = response.strip()
 
-            parsed = json.loads(cleaned.strip())
+            json_blocks = re.findall(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+            if json_blocks:
+                cleaned = json_blocks[-1].strip()
+            else:
+                start_idx = text.find('{')
+                end_idx = text.rfind('}')
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    cleaned = text[start_idx:end_idx+1].strip()
+                else:
+                    cleaned = text
+
+            parsed = json.loads(cleaned)
             return ClarifierResult.model_validate(parsed)
             
         except Exception as e:

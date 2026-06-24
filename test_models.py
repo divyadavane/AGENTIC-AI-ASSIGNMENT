@@ -1,14 +1,19 @@
+import asyncio
 import httpx
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GROQ_API_KEY")
 
-url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-response = httpx.get(url)
-print(response.status_code)
-try:
-    print(response.json())
-except Exception as e:
-    print(response.text)
+async def get_models():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
+        data = response.json()
+        for model in data.get("data", []):
+            print(f"- {model['id']}")
+            
+asyncio.run(get_models())

@@ -8,12 +8,13 @@ Supports:
   - Standard (non-streaming) completions
   - Streaming completions via Server-Sent Events (SSE)
   - Proper error handling, timeout management, and structured responses
+  - Multimodal Vision Support (auto-switching to vision model)
 """
 
 from __future__ import annotations
 
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Any
 
 import httpx
 
@@ -62,30 +63,49 @@ class LLMClient:
 
     def _build_payload(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
         stream: bool = False,
+        json_mode: bool = False,
     ) -> dict:
         """Build the request payload for the chat completions endpoint."""
-        return {
-            "model": self.model,
+        
+        # Check if any message contains an image. If so, switch to the vision model.
+        has_vision = False
+        for msg in messages:
+            if isinstance(msg.get("content"), list):
+                for item in msg["content"]:
+                    if isinstance(item, dict) and item.get("type") == "image_url":
+                        has_vision = True
+                        break
+        
+        target_model = "llama-3.2-11b-vision-preview" if has_vision else self.model
+
+        payload = {
+            "model": target_model,
             "messages": messages,
             "temperature": temperature if temperature is not None else config.LLM_TEMPERATURE,
             "max_tokens": max_tokens or config.LLM_MAX_TOKENS,
             "stream": stream,
         }
+        
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+            
+        return payload
 
     async def call(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
+        json_mode: bool = False,
     ) -> str:
         """
         Make a non-streaming LLM call using httpx.
         """
-        payload = self._build_payload(messages, temperature, max_tokens, stream=False)
+        payload = self._build_payload(messages, temperature, max_tokens, stream=False, json_mode=json_mode)
         url = "https://api.groq.com/openai/v1/chat/completions"
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -104,7 +124,7 @@ class LLMClient:
 
     async def call_stream(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> AsyncGenerator[str, None]:

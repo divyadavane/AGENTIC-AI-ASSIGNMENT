@@ -14,7 +14,7 @@ load_dotenv()
 # ─── LLM Configuration ───────────────────────────────────────────────
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL: str = "google/gemini-2.0-flash-exp:free"
+DEFAULT_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
 
 # ─── LLM Call Parameters ─────────────────────────────────────────────
 LLM_TIMEOUT: int = 60            # seconds

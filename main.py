@@ -22,6 +22,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+if sys.stdout.encoding != 'utf-8' and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 from rich.console import Console
 from rich.live import Live

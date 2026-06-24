@@ -21,8 +21,8 @@ env/
 .vscode/
 .idea/
 
-# Logs
-logs/
+# Logs (keep directory structure, ignore log files)
+logs/*.jsonl
 
 # OS files
 .DS_Store

@@ -155,6 +155,27 @@ async def get_history():
         raise HTTPException(status_code=500, detail=f"Error reading history: {e}")
 
 
+@app.delete("/api/history/{item_id}")
+async def delete_history(item_id: str):
+    """Delete a specific item from the history."""
+    history_file = os.path.join(config.LOG_DIR, "history.json")
+    if not os.path.exists(history_file):
+        raise HTTPException(status_code=404, detail="History not found")
+    
+    try:
+        with open(history_file, "r", encoding="utf-8") as f:
+            history = json.load(f)
+            
+        new_history = [item for item in history if item.get("id") != item_id]
+        
+        with open(history_file, "w", encoding="utf-8") as f:
+            json.dump(new_history, f, indent=2, ensure_ascii=False)
+            
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting history: {e}")
+
+
 @app.post("/api/run")
 async def run_pipeline(req: RunRequest):
     """Start the pipeline and stream results via SSE."""
@@ -175,24 +196,34 @@ async def clarify_task(req: ClarifyRequest):
     
     # Inject attachments into the last message for the Clarifier to see
     if req.attachments and history:
-        attachment_text = "\\n\\n[Attached Files]:\\n"
+        text_content = history[-1]["content"] + "\n\n[Attached Files]:\n"
+        image_items = []
         for att in req.attachments:
             if att.type == "text":
-                attachment_text += f"- {att.name}:\\n{att.content}\\n"
-            else:
-                attachment_text += f"- {att.name} (Image attached)\\n"
-        history[-1]["content"] += attachment_text
+                text_content += f"- {att.name}:\n{att.content}\n"
+            elif att.type == "image":
+                text_content += f"- {att.name} (Image attached)\n"
+                url = att.content if att.content.startswith("data:") else f"data:image/jpeg;base64,{att.content}"
+                image_items.append({
+                    "type": "image_url",
+                    "image_url": {"url": url}
+                })
+        
+        if image_items:
+            history[-1]["content"] = [{"type": "text", "text": text_content}] + image_items
+        else:
+            history[-1]["content"] = text_content
 
     result = await clarifier.evaluate(history)
     
     # If not a question, append attachments text to the final task string so the decomposer can see them
     if result.action == "execute" and req.attachments:
-        attachment_text = "\\n\\n[Attached Files]:\\n"
+        attachment_text = "\n\n[Attached Files]:\n"
         for att in req.attachments:
             if att.type == "text":
-                attachment_text += f"- {att.name}:\\n{att.content}\\n"
+                attachment_text += f"- {att.name}:\n{att.content}\n"
             else:
-                attachment_text += f"- {att.name} (Image attached)\\n"
+                attachment_text += f"- {att.name} (Image attached)\n"
         result.task += attachment_text
 
     return result.model_dump()

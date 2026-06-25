@@ -40,7 +40,23 @@ class RetrieverAgent(BaseAgent):
           3. Combine results; if both fail, return empty output with error info
         """
         start_time = time.time()
-        query = step.instruction
+        
+        # Optimize query via LLM to extract keywords
+        try:
+            from llm.client import LLMClient
+            client = LLMClient()
+            optimized_query = await client.call(
+                messages=[
+                    {"role": "system", "content": "You are a search query optimizer. Given a complex instruction, extract the best short search query (3-6 words) to use in a search engine like DuckDuckGo or Wikipedia. Return ONLY the exact search query keywords, with no quotes, punctuation, or extra text."},
+                    {"role": "user", "content": step.instruction}
+                ],
+                temperature=0.1,
+                max_tokens=30
+            )
+            query = optimized_query.strip(' "\'')
+        except Exception:
+            query = step.instruction
+
         results: list[str] = []
         errors: list[str] = []
 

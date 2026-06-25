@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Brain, ArrowLeft, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Brain, ArrowLeft, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -33,6 +33,20 @@ export default function HistoryPage() {
         setLoading(false);
       });
   }, []);
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`http://localhost:8000/api/history/${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setHistory(prev => prev.filter(item => item.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete history item:", err);
+    }
+  };
 
   const formatDuration = (ms: number) => {
     return (ms / 1000).toFixed(1) + "s";
@@ -86,11 +100,7 @@ export default function HistoryPage() {
                   onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
                 >
                   <div className="mt-1">
-                    {entry.status === "success" ? (
-                      <CheckCircle className="w-6 h-6 text-emerald-500" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-red-500" />
-                    )}
+                    <CheckCircle className="w-6 h-6 text-emerald-500" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-4 mb-2">
@@ -99,7 +109,14 @@ export default function HistoryPage() {
                     </div>
                     <h3 className="text-lg text-white font-medium truncate">{entry.task}</h3>
                   </div>
-                  <div className="mt-1 text-slate-500">
+                  <div className="mt-1 text-slate-500 flex items-center gap-2">
+                    <button 
+                      onClick={(e) => handleDelete(e, entry.id)}
+                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-md transition-colors"
+                      title="Delete History"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     {expandedId === entry.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                   </div>
                 </div>

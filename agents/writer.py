@@ -37,6 +37,7 @@ class WriterAgent(BaseAgent):
         "- Include specific details and evidence from the source material\n"
         "- CRITICAL: If image URLs are provided in the source material, embed them into your response using markdown syntax: ![Alt Text](Image URL)\n"
         "- CRITICAL: Cite your sources extensively! Add inline links like [Source Name](URL) and include a 'Sources & Related Websites' section at the bottom.\n"
+        "- CRITICAL: Do not invent or hallucinate facts. Rely completely on the provided Source Material.\n"
         "- Maintain a professional but accessible tone\n"
         "- Format with markdown where appropriate (headers, lists, bold)\n"
         "- Be comprehensive but avoid unnecessary filler"
@@ -50,7 +51,8 @@ class WriterAgent(BaseAgent):
         2. Build a prompt with the writing instruction + source material
         3. Inject any attached images into the multimodal payload
         4. Call the LLM with streaming to produce the final output
-        5. Collect all streamed tokens into the final result
+        5. If streaming fails, fall back to a non-streaming call
+        6. Collect all streamed tokens into the final result
         """
         start_time = time.time()
 
@@ -76,18 +78,20 @@ class WriterAgent(BaseAgent):
             # Fall back to standard string if no attachments
             user_content = user_text
 
-        # Call the LLM with streaming — collect tokens
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
+
+        event_queue = context.get("__event_queue__")
+
+        # ─── Attempt 1: Streaming call ────────────────────────────────
         try:
             client = LLMClient()
             output_parts: list[str] = []
 
-            event_queue = context.get("__event_queue__")
-
             async for token in client.call_stream(
-                messages=[
-                    {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
+                messages=messages,
                 temperature=0.7,  # Higher temperature for creative writing
             ):
                 output_parts.append(token)
@@ -99,13 +103,37 @@ class WriterAgent(BaseAgent):
 
             full_output = "".join(output_parts)
 
+            if full_output.strip():
+                return self._make_result(
+                    step, StepStatus.SUCCESS, output=full_output, start_time=start_time
+                )
+            # If streaming returned empty, fall through to non-streaming fallback
+
+        except LLMClientError:
+            pass  # Fall through to non-streaming fallback
+
+        # ─── Attempt 2: Non-streaming fallback ────────────────────────
+        try:
+            client = LLMClient()
+            full_output = await client.call(
+                messages=messages,
+                temperature=0.7,
+            )
+
             if not full_output.strip():
                 return self._make_result(
                     step,
                     StepStatus.FAILED,
-                    error="Writer produced empty output",
+                    error="Writer produced empty output (both streaming and non-streaming)",
                     start_time=start_time,
                 )
+
+            # Send the full output as a single token event so the frontend sees it
+            if event_queue is not None:
+                try:
+                    event_queue.put_nowait({"type": "token", "data": full_output})
+                except Exception:
+                    pass
 
             return self._make_result(
                 step, StepStatus.SUCCESS, output=full_output, start_time=start_time
@@ -115,7 +143,7 @@ class WriterAgent(BaseAgent):
             return self._make_result(
                 step,
                 StepStatus.FAILED,
-                error=f"Writer LLM call failed: {e}",
+                error=f"Writer LLM call failed (streaming + fallback): {e}",
                 start_time=start_time,
             )
 

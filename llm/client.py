@@ -130,11 +130,21 @@ class LLMClient:
     ) -> AsyncGenerator[str, None]:
         """
         Make a streaming LLM call using httpx and Server-Sent Events.
+
+        Uses a longer timeout for streaming to prevent premature closure.
         """
         payload = self._build_payload(messages, temperature, max_tokens, stream=True)
         url = "https://api.groq.com/openai/v1/chat/completions"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        # Use longer timeouts for streaming — the connection stays open for a while
+        stream_timeout = httpx.Timeout(
+            connect=30.0,
+            read=120.0,
+            write=30.0,
+            pool=30.0,
+        )
+
+        async with httpx.AsyncClient(timeout=stream_timeout) as client:
             try:
                 async with client.stream(
                     "POST", url, headers=self._build_headers(), json=payload
@@ -159,8 +169,14 @@ class LLMClient:
                             except json.JSONDecodeError:
                                 continue
             except httpx.HTTPStatusError as e:
-                await e.response.aread()
-                err_text = e.response.text
+                try:
+                    await e.response.aread()
+                    err_text = e.response.text
+                except Exception:
+                    err_text = str(e)
                 raise LLMClientError(f"Groq API error ({e.response.status_code}): {err_text}")
+            except httpx.StreamClosed:
+                # Stream was closed prematurely — don't raise, just stop yielding
+                return
             except Exception as e:
                 raise LLMClientError(f"Groq stream failed: {e}")

@@ -34,7 +34,10 @@ class AnalyzerAgent(BaseAgent):
         "- Important details and supporting evidence\n"
         "- Patterns, comparisons, or contradictions in the data\n"
         "- A concise summary of your analysis\n\n"
-        "Be thorough but concise. Use bullet points or numbered lists where appropriate."
+        "CRITICAL RULES FOR ACCURACY:\n"
+        "1. DO NOT hallucinate or invent information. If the data is not present in the 'Available Data', state that it is unknown.\n"
+        "2. Ground your analysis strictly in the provided data.\n"
+        "3. Be thorough but concise. Use bullet points or numbered lists where appropriate."
     )
 
     async def run(self, step: Step, context: dict[str, Any]) -> AgentResult:

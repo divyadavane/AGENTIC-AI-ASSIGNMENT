@@ -37,7 +37,8 @@ class AnalyzerAgent(BaseAgent):
         "CRITICAL RULES FOR ACCURACY:\n"
         "1. DO NOT hallucinate or invent information. If the data is not present in the 'Available Data', state that it is unknown.\n"
         "2. Ground your analysis strictly in the provided data.\n"
-        "3. Be thorough but concise. Use bullet points or numbered lists where appropriate."
+        "3. Be thorough but concise. Use bullet points or numbered lists where appropriate.\n"
+        "4. If the task requires writing code, algorithms, or scripts, write them in the specific programming language requested by the prompt, using proper markdown."
     )
 
     async def run(self, step: Step, context: dict[str, Any]) -> AgentResult:

@@ -34,7 +34,7 @@ class Step(BaseModel):
     Each step is routed to one of the three specialized agents.
     """
     id: str = Field(description="Unique step identifier, e.g. 'step_1'")
-    agent: Literal["retriever", "analyzer", "writer"] = Field(
+    agent: Literal["retriever", "analyzer", "writer", "coder"] = Field(
         description="Which agent handles this step"
     )
     instruction: str = Field(

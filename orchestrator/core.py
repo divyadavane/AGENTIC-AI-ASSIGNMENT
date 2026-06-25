@@ -25,6 +25,7 @@ from typing import AsyncGenerator
 
 from agents.analyzer import AnalyzerAgent
 from agents.base import BaseAgent
+from agents.coder import CoderAgent
 from agents.retriever import RetrieverAgent
 from agents.writer import WriterAgent
 from llm.client import LLMClient, LLMClientError
@@ -61,6 +62,7 @@ Available agents:
 - "retriever": Fetches external information (web search, data retrieval). Use for gathering facts, searching for information, finding data.
 - "analyzer": Processes and reasons over data (summarization, classification, extraction, comparison). Use for thinking about and structuring information.
 - "writer": Produces final formatted output (reports, articles, summaries, structured responses). Use for creating the deliverable.
+- "coder": Writes executable code, scripts, and software programs. Use for programming tasks.
 
 Rules:
 1. Each step must have: id (string like "step_1"), agent (one of the three above), instruction (clear natural language), depends_on (list of step IDs that must complete first)
@@ -76,11 +78,11 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
         """Initialize the orchestrator with agent registry and LLM client."""
         self.llm_client = LLMClient()
 
-        # Agent registry — maps agent names to instances
         self.agents: dict[str, BaseAgent] = {
             "retriever": RetrieverAgent(),
             "analyzer": AnalyzerAgent(),
             "writer": WriterAgent(),
+            "coder": CoderAgent(),
         }
 
         # Pipeline state: step_id → AgentResult

@@ -114,8 +114,11 @@ async def pipeline_generator(task: str, mock: bool, attachments: list[Attachment
             }
         elif event["type"] == "result":
             result = event["data"]
-            if result.agent == "writer" and result.output:
-                final_output = result.output
+            if result.agent in ["writer", "coder"] and result.output:
+                if final_output:
+                    final_output += "\n\n" + result.output
+                else:
+                    final_output = result.output
             yield {
                 "event": "step_result",
                 "data": result.model_dump_json()

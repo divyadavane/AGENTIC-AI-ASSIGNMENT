@@ -1,11 +1,8 @@
 """
-Writer Agent — produces the final formatted output.
+Coder Agent — produces executable code.
 
-Takes analysis from prior steps and calls the LLM (with streaming)
-to produce polished, well-structured content: reports, summaries,
-articles, structured responses.
-
-This is the final agent in most pipelines — its output is what the user sees.
+Takes analysis and requirements from prior steps and calls the LLM (with streaming)
+to produce clean, functional, and well-documented code.
 """
 
 from __future__ import annotations
@@ -18,42 +15,32 @@ from llm.client import LLMClient, LLMClientError
 from models.schemas import AgentResult, Step, StepStatus
 
 
-class WriterAgent(BaseAgent):
+class CoderAgent(BaseAgent):
     """
-    Produces final written output using LLM.
+    Produces code using the LLM.
 
     Stateless: receives step instruction + context from prior steps,
-    calls the LLM with streaming, returns polished written content.
+    calls the LLM with streaming, returns code blocks and explanations.
     """
 
-    name = "writer"
+    name = "coder"
 
     SYSTEM_PROMPT = (
-        "You are an expert writer. Your job is to produce polished, "
-        "well-structured content based on the provided analysis and data. "
+        "You are an expert, senior software engineer. Your job is to write clean, "
+        "efficient, and well-documented code based on the provided task and data. "
         "Guidelines:\n"
-        "- Write in clear, engaging prose\n"
-        "- Use proper structure: introduction, body, conclusion\n"
-        "- Include specific details and evidence from the source material\n"
-        "- CRITICAL: If image URLs are provided in the source material, embed them into your response using markdown syntax: ![Alt Text](Image URL)\n"
-        "- CRITICAL: Cite your sources extensively! Add inline links like [Source Name](URL) and include a 'Sources & Related Websites' section at the bottom.\n"
-        "- CRITICAL: Do not invent or hallucinate facts. Rely completely on the provided Source Material.\n"
-        "- Maintain a professional but accessible tone\n"
-        "- Format with markdown where appropriate (headers, lists, bold)\n"
-        "- Be comprehensive but avoid unnecessary filler\n"
-        "- If the user asks for code, write it in the specific programming language requested by the prompt, enclosed in proper markdown blocks."
+        "- Write functional, production-ready code in the specific programming language requested by the prompt\n"
+        "- Always enclose code in proper markdown code blocks with the language specified (e.g., ```python)\n"
+        "- Add brief, clear comments explaining complex logic\n"
+        "- Follow best practices for the chosen language/framework\n"
+        "- Prioritize security, performance, and readability\n"
+        "- If the task involves a UI, assume modern frameworks like React or Next.js unless specified otherwise\n"
+        "- ALWAYS provide a clear, step-by-step explanation of how the code works alongside the code blocks."
     )
 
     async def run(self, step: Step, context: dict[str, Any]) -> AgentResult:
         """
-        Execute a writing step.
-
-        1. Gather outputs from dependency steps (typically analysis)
-        2. Build a prompt with the writing instruction + source material
-        3. Inject any attached images into the multimodal payload
-        4. Call the LLM with streaming to produce the final output
-        5. If streaming fails, fall back to a non-streaming call
-        6. Collect all streamed tokens into the final result
+        Execute a coding step.
         """
         start_time = time.time()
 
@@ -67,7 +54,6 @@ class WriterAgent(BaseAgent):
         attachments = context.get("__attachments__", [])
         
         if attachments:
-            # Format as a list of dicts for multimodal vision model
             user_content = [{"type": "text", "text": user_text}]
             for att in attachments:
                 if isinstance(att, dict) and att.get("type") == "image":
@@ -76,7 +62,6 @@ class WriterAgent(BaseAgent):
                         "image_url": {"url": att.get("content")}
                     })
         else:
-            # Fall back to standard string if no attachments
             user_content = user_text
 
         messages = [
@@ -86,14 +71,13 @@ class WriterAgent(BaseAgent):
 
         event_queue = context.get("__event_queue__")
 
-        # ─── Attempt 1: Streaming call ────────────────────────────────
         try:
             client = LLMClient()
             output_parts: list[str] = []
 
             async for token in client.call_stream(
                 messages=messages,
-                temperature=0.7,  # Higher temperature for creative writing
+                temperature=0.2,  # Low temperature for code generation to reduce hallucination
             ):
                 output_parts.append(token)
                 if event_queue is not None:
@@ -108,28 +92,25 @@ class WriterAgent(BaseAgent):
                 return self._make_result(
                     step, StepStatus.SUCCESS, output=full_output, start_time=start_time
                 )
-            # If streaming returned empty, fall through to non-streaming fallback
 
         except LLMClientError:
-            pass  # Fall through to non-streaming fallback
+            pass  # Fall through
 
-        # ─── Attempt 2: Non-streaming fallback ────────────────────────
         try:
             client = LLMClient()
             full_output = await client.call(
                 messages=messages,
-                temperature=0.7,
+                temperature=0.2,
             )
 
             if not full_output.strip():
                 return self._make_result(
                     step,
                     StepStatus.FAILED,
-                    error="Writer produced empty output (both streaming and non-streaming)",
+                    error="Coder produced empty output",
                     start_time=start_time,
                 )
 
-            # Send the full output as a single token event so the frontend sees it
             if event_queue is not None:
                 try:
                     event_queue.put_nowait({"type": "token", "data": full_output})
@@ -144,20 +125,15 @@ class WriterAgent(BaseAgent):
             return self._make_result(
                 step,
                 StepStatus.FAILED,
-                error=f"Writer LLM call failed (streaming + fallback): {e}",
+                error=f"Coder LLM call failed: {e}",
                 start_time=start_time,
             )
 
     def _build_user_message(self, instruction: str, dep_outputs: str) -> str:
         """Construct the user message for the LLM call."""
-        parts = [f"**Writing Task:** {instruction}"]
+        parts = [f"**Coding Task:** {instruction}"]
 
         if dep_outputs:
-            parts.append(f"\n**Source Material:**\n{dep_outputs}")
-        else:
-            parts.append(
-                "\n**Note:** No prior analysis or data is available. "
-                "Write based on your knowledge and the task instruction."
-            )
+            parts.append(f"\n**Context/Requirements:**\n{dep_outputs}")
 
         return "\n".join(parts)

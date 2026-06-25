@@ -69,4 +69,7 @@ Return a JSON object with this exact structure:
         except Exception as e:
             # Fallback to execution if LLM fails formatting
             task = chat_history[-1]["content"] if chat_history else ""
+            if isinstance(task, list):
+                # Extract the text string from the multimodal payload list
+                task = next((item["text"] for item in task if item.get("type") == "text"), "")
             return ClarifierResult(action="execute", task=task)

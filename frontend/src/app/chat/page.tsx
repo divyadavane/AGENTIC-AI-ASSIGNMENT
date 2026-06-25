@@ -22,7 +22,7 @@ type ChatMessage = {
 
 type Step = {
   id: string;
-  agent: "retriever" | "analyzer" | "writer";
+  agent: "retriever" | "analyzer" | "writer" | "coder";
   instruction: string;
   depends_on: string[];
 };
@@ -574,12 +574,7 @@ function ChatInterface() {
               } else if (event === "step_result") {
                 updateSession(sessionId, prev => {
                    const newResults = { ...prev.results, [data.step_id]: data };
-                   let newOutput = prev.finalOutput;
-                   if (data.agent === "writer" && data.output) {
-                       newOutput = data.output;
-                       currentFinalOutput = data.output;
-                   }
-                   return { ...prev, results: newResults, finalOutput: newOutput };
+                   return { ...prev, results: newResults };
                 });
                 
                 if (data.status === "success") {
@@ -612,6 +607,7 @@ function ChatInterface() {
       case "retriever": return <Search {...props} />;
       case "analyzer": return <Database {...props} />;
       case "writer": return <PenTool {...props} />;
+      case "coder": return <Code {...props} />;
       default: return <Brain {...props} />;
     }
   };

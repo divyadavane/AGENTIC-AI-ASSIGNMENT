@@ -1,175 +1,131 @@
-# 🤖 Agentic AI System for Multi-Step Tasks
+# 🤖 Zyro: Agentic AI System for Multi-Step Tasks
 
-An orchestration system that decomposes complex tasks into discrete steps, routes them to specialized agents, and executes via an async pipeline with streaming output — **built from scratch without black-box agent frameworks**.
+An orchestration system that decomposes complex tasks into discrete steps, routes them to specialized agents, and executes via an async pipeline with streaming output — **built from scratch without black-box agent frameworks**. 
+
+Zyro now features a full-stack architecture with a modern **Next.js** web interface, a real-time Execution Graph visualization, and a **FastAPI** backend supporting conversational task clarification and multimodal attachments.
 
 ## ✨ Key Features
 
-- **LLM-Powered Task Decomposition** — Breaks complex tasks into ordered steps via a single LLM call
-- **Three Specialized Agents** — Retriever (web search + Wikipedia), Analyzer (LLM reasoning), Writer (streaming LLM output)
-- **Async Pipeline Execution** — Python `asyncio` with parallel batching for independent steps
-- **Real-Time Streaming** — Partial results streamed to terminal as each step completes
-- **3-Layer Failure Handling** — Retry with backoff → graceful fallback → hard abort
-- **Manual Dependency Batching** — Topological sort grouping steps into parallel waves
-- **Structured Logging** — JSON-lines log files for observability
-- **Rich Terminal UI** — Color-coded status, progress tracking, final summary table
+- **Next.js Web Interface** — A beautiful, modern chat UI with real-time execution streaming, history management, and a dynamic directed acyclic graph (DAG) visualizer for steps.
+- **FastAPI SSE Backend** — Exposes the orchestration pipeline via Server-Sent Events (SSE) for seamless real-time streaming to the client.
+- **Task Clarification Engine** — An intelligent `Clarifier` agent analyzes chat history to determine if the user is asking a conversational question or commanding an execution, routing seamlessly.
+- **Multimodal Attachments** — Supports image and text file attachments right in the chat interface.
+- **LLM-Powered Task Decomposition** — Breaks complex tasks into ordered steps via a single LLM call.
+- **Three Specialized Agents** — Retriever (web search + Wikipedia), Analyzer (LLM reasoning), Writer (streaming LLM output).
+- **Async Pipeline Execution** — Python `asyncio` with parallel batching for independent steps.
+- **3-Layer Failure Handling** — Retry with backoff → graceful fallback → hard abort.
+- **Manual Dependency Batching** — Topological sort grouping steps into parallel waves.
 
 ## 🏗️ Architecture
 
 ```
-User Input  →  Orchestrator  →  Wave Batching  →  Agents (parallel)  →  Streamed Output
-                    │
-         ┌──────────┼──────────┐
-         ▼          ▼          ▼
-    Retriever   Analyzer    Writer
-   (web search) (LLM think) (LLM write)
+ Next.js Client (Chat UI, Graph, History)
+        │
+     (SSE / REST)
+        ▼
+   FastAPI Backend (api.py)
+        │
+   [Clarifier] ──(if execution)──► Orchestrator  →  Wave Batching  →  Agents (parallel)
+                                        │
+                             ┌──────────┼──────────┐
+                             ▼          ▼          ▼
+                        Retriever   Analyzer    Writer
+                       (search)     (think)     (write)
 ```
 
 The **Orchestrator** owns all state. Agents are **stateless** — they receive full context on every call.
-See [docs/architecture.md](docs/architecture.md) for the full system design document.
+See [docs/architecture.md](docs/architecture.md) for the full backend system design document.
 
 ## 📁 Project Structure
 
 ```
+├── frontend/             # Next.js 14 App Router UI
+│   ├── src/app/          # Chat, History, and Landing pages
+│   ├── public/           # Static assets and logo
+│   └── package.json      # Frontend dependencies
 ├── orchestrator/
 │   ├── core.py           # Orchestrator: decompose, execute, stream, retry
-│   └── batching.py       # Manual dependency-wave batching (topological sort)
+│   ├── batching.py       # Dependency-wave batching (topological sort)
+│   └── clarifier.py      # Intent router (Question vs. Execution)
 ├── agents/
 │   ├── base.py           # Abstract base agent class
 │   ├── retriever.py      # RetrieverAgent: DuckDuckGo + Wikipedia
 │   ├── analyzer.py       # AnalyzerAgent: LLM-powered analysis
 │   └── writer.py         # WriterAgent: LLM streaming output
 ├── models/
-│   └── schemas.py        # Pydantic v2 models: Step, AgentResult, ErrorLog
-├── llm/
-│   └── client.py         # Direct httpx client to OpenRouter API (no SDK)
-├── tests/
-│   ├── test_decomposition.py  # Decomposition unit tests
-│   ├── test_agents.py         # Agent unit tests
-│   ├── test_pipeline.py       # Pipeline integration tests
-│   └── test_failure.py        # Failure handling tests
-├── docs/
-│   ├── architecture.md        # System design document
-│   ├── post_mortem.md         # Post-mortem reflection
-│   └── sequence_diagram.md   # Mermaid sequence diagrams
-├── logs/                      # Runtime JSON-lines logs (gitignored)
-├── main.py                    # CLI entry point with Rich UI
-├── config.py                  # Configuration (env vars, constants)
-├── requirements.txt           # Dependencies
-└── .env.example               # Example environment variables
+│   └── schemas.py        # Pydantic models (API requests, Steps, Agents)
+├── api.py                # FastAPI backend endpoints and SSE streaming
+├── main.py               # Legacy CLI entry point
+├── config.py             # Configuration (env vars, constants)
+└── requirements.txt      # Python dependencies
 ```
 
 ## 🚀 Quick Start
 
-### 1. Clone & Install
+### 1. Clone & Set Up Backend
 
 ```bash
 git clone <repo-url>
 cd "AGENTIC AI ASSIGNMENT"
+
+# Install backend dependencies
 pip install -r requirements.txt
-```
 
-### 2. Set Up API Key
-
-Get a free API key from [OpenRouter](https://openrouter.ai):
-
-```bash
+# Set up API Key
 cp .env.example .env
 # Edit .env and paste your OpenRouter API key
 ```
 
-### 3. Run
+### 2. Set Up Frontend
 
 ```bash
-# Interactive mode — enter your task at the prompt
-python main.py
+cd frontend
 
-# Direct mode — pass task as argument
-python main.py --task "Research electric vehicles and write a 3-paragraph summary"
-
-# Failure demo — shows retry, fallback, and graceful degradation
-python main.py --failure-demo
+# Install frontend dependencies
+npm install
 ```
 
-## 📋 Example Input/Output
+### 3. Run the Full Stack
 
-**Input:**
-```
-Research electric vehicles and write a 3-paragraph summary
-```
+You will need two terminal windows.
 
-**Output (streamed):**
-```
-🤖 Agentic AI System for Multi-Step Tasks
-
-🧠 Decomposing task: Research electric vehicles and write a 3-paragraph summary
-
-📋 Task Decomposition
-┌──────────┬────────────┬──────────────────────────────────┬────────────┐
-│ Step     │ Agent      │ Instruction                      │ Depends On │
-├──────────┼────────────┼──────────────────────────────────┼────────────┤
-│ step_1   │ retriever  │ Search for EV market data...     │ —          │
-│ step_2   │ retriever  │ Search for EV technology...      │ —          │
-│ step_3   │ analyzer   │ Analyze key trends and...        │ step_1, 2  │
-│ step_4   │ writer     │ Write a 3-paragraph summary...   │ step_3     │
-└──────────┴────────────┴──────────────────────────────────┴────────────┘
-
-⚡ Execution Wave Plan
-  Wave 0: [step_1, step_2] (retriever, retriever) — parallel
-  Wave 1: [step_3] (analyzer) — sequential
-  Wave 2: [step_4] (writer) — sequential
-
-🚀 Executing pipeline...
-  ✅ SUCCESS │ Step: step_1 │ Agent: retriever │ Time: 2340ms
-  ✅ SUCCESS │ Step: step_2 │ Agent: retriever │ Time: 1890ms
-  ✅ SUCCESS │ Step: step_3 │ Agent: analyzer  │ Time: 3200ms
-  ✅ SUCCESS │ Step: step_4 │ Agent: writer    │ Time: 4100ms
-
-📊 Execution Summary
-  Total: 4 steps │ ✅ 4 succeeded │ ❌ 0 failed │ ⏱ 11530ms total
-
-📝 Final Output
-  [Generated 3-paragraph summary about electric vehicles...]
+**Terminal 1 (Backend):**
+```bash
+# Starts the FastAPI server on http://localhost:8000
+python api.py
 ```
 
-## 🧪 Running Tests
+**Terminal 2 (Frontend):**
+```bash
+cd frontend
+# Starts the Next.js dev server on http://localhost:3000
+npm run dev
+```
+
+Open your browser to `http://localhost:3000` to access the Zyro interface!
+
+## 🧪 Running Tests (Backend)
 
 ```bash
 # Run all tests
 pytest tests/ -v
 
-# Run specific test modules
-pytest tests/test_decomposition.py -v
-pytest tests/test_failure.py -v
-
 # Run with asyncio mode
 pytest tests/ -v --asyncio-mode=auto
 ```
-
-## ⚠️ Failure Handling Demo
-
-Run with `--failure-demo` to see all three layers of failure handling:
-
-```bash
-python main.py --failure-demo --task "Research AI trends"
-```
-
-This simulates a `TimeoutError` in the Retriever agent on its first call:
-1. **Retry**: The system retries after 2s with exponential backoff
-2. **Graceful Degradation**: If retry fails, the pipeline continues with empty data
-3. **Error Streaming**: Real-time error messages are shown to the user
 
 ## 🔧 Technology Stack
 
 | Component | Technology | Rationale |
 |-----------|-----------|-----------|
-| Runtime | Python 3.11+ asyncio | Native concurrency for I/O-heavy pipeline |
-| HTTP | httpx | Async HTTP with streaming, no SDK wrapper |
-| Validation | Pydantic v2 | Typed contracts between agents |
-| Terminal UI | Rich | Live streaming panels, color-coded output |
-| LLM Backend | OpenRouter API | Multi-model gateway, free tier |
-| Web Search | duckduckgo-search | Free, no API key |
-| Knowledge | wikipedia | Free, structured summaries |
-| Testing | pytest + pytest-asyncio | Async test support |
+| **Frontend UI** | Next.js 14, React, Tailwind CSS | Modern, responsive component architecture |
+| **Animations** | Framer Motion | Fluid micro-interactions and transitions |
+| **Backend API** | FastAPI, SSE Starlette | Async endpoint serving and real-time streams |
+| **Runtime** | Python 3.11+ asyncio | Native concurrency for I/O-heavy pipeline |
+| **HTTP** | httpx | Async HTTP with streaming, no SDK wrapper |
+| **Validation** | Pydantic v2 | Typed contracts between agents |
+| **LLM Backend** | OpenRouter API | Multi-model gateway, free tier |
+| **Web Search** | duckduckgo-search | Free, no API key |
 
 ### What We Don't Use
 

@@ -22,7 +22,8 @@ export default function HistoryPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/history")
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    fetch(`${API_BASE}/api/history`)
       .then(res => res.json())
       .then(data => {
         setHistory(data);
@@ -37,7 +38,8 @@ export default function HistoryPage() {
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`http://localhost:8000/api/history/${id}`, {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_BASE}/api/history/${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {

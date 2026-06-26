@@ -441,7 +441,8 @@ function ChatInterface() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/clarify", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_BASE}/api/clarify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_history: chatHistory, attachments: session.attachments })
@@ -501,7 +502,8 @@ function ChatInterface() {
     const attachments = session?.attachments || [];
 
     try {
-      const res = await fetch("http://localhost:8000/api/run", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_BASE}/api/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task: finalTask, attachments: attachments, mock: false })

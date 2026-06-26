@@ -1,22 +1,31 @@
 # 🤖 Zyro: Agentic AI System for Multi-Step Tasks
 
-An orchestration system that decomposes complex tasks into discrete steps, routes them to specialized agents, and executes via an async pipeline with streaming output — **built from scratch without black-box agent frameworks**. 
+An orchestration system that decomposes complex tasks into discrete steps, routes them to specialized agents, and executes via an async pipeline with streaming output — **built entirely from scratch without relying on black-box agent frameworks** (like LangChain or CrewAI). 
 
-Zyro now features a full-stack architecture with a modern **Next.js** web interface, a real-time Execution Graph visualization, and a **FastAPI** backend supporting conversational task clarification and multimodal attachments.
+Zyro features a full-stack architecture with a modern **Next.js** web interface, a real-time Execution Graph visualization, and a **FastAPI** backend supporting conversational task clarification and multimodal attachments.
 
-## ✨ Key Features
+---
 
-- **Next.js Web Interface** — A beautiful, modern chat UI with real-time execution streaming, history management, and a dynamic directed acyclic graph (DAG) visualizer for steps.
-- **FastAPI SSE Backend** — Exposes the orchestration pipeline via Server-Sent Events (SSE) for seamless real-time streaming to the client.
-- **Task Clarification Engine** — An intelligent `Clarifier` agent analyzes chat history to determine if the user is asking a conversational question or commanding an execution, routing seamlessly.
-- **Multimodal Attachments** — Supports image and text file attachments right in the chat interface.
-- **LLM-Powered Task Decomposition** — Breaks complex tasks into ordered steps via a single LLM call.
-- **Three Specialized Agents** — Retriever (web search + Wikipedia), Analyzer (LLM reasoning), Writer (streaming LLM output).
-- **Async Pipeline Execution** — Python `asyncio` with parallel batching for independent steps.
-- **3-Layer Failure Handling** — Retry with backoff → graceful fallback → hard abort.
-- **Manual Dependency Batching** — Topological sort grouping steps into parallel waves.
+## 🎯 Assignment Objectives Met
 
-## 🏗️ Architecture
+This project was built to strictly satisfy the assignment requirements:
+
+- **Complex Task Input**: Accepts multi-part tasks via a modern Chat UI, including support for multimodal (text + image) attachments.
+- **Task Decomposition**: Uses a single LLM call to break down complex tasks into a structured JSON array of ordered steps with defined dependencies.
+- **Specialized Agents**: Features distinct agents:
+  - `RetrieverAgent`: Performs web searches and Wikipedia lookups.
+  - `AnalyzerAgent`: Uses LLM reasoning to synthesize retrieved data.
+  - `WriterAgent`: Formats and streams the final output.
+  - `ClarifierAgent` (Bonus): Intelligent intent routing (Question vs. Execution).
+- **Async Pipeline Architecture**: Uses Python `asyncio` for concurrent execution of I/O-bound agent tasks.
+- **Streaming Output**: Streams partial step completions and token-by-token LLM output to the frontend via Server-Sent Events (SSE).
+- **Graceful Failure Handling**: Implements a robust 3-layer failure strategy (Retry with exponential backoff → Graceful degradation/fallback → Hard abort).
+- **Manual Batching Logic**: Uses a custom topological sort algorithm to group dependencies into sequential "waves" of parallel execution, entirely written from scratch.
+- **Constraint (No Black-Box Frameworks)**: All orchestration, routing, batching, streaming, and state management logic is custom-built to demonstrate deep understanding of agentic systems under the hood.
+
+---
+
+## 🏗️ Full-Stack Architecture
 
 ```
  Next.js Client (Chat UI, Graph, History)
@@ -34,7 +43,9 @@ Zyro now features a full-stack architecture with a modern **Next.js** web interf
 ```
 
 The **Orchestrator** owns all state. Agents are **stateless** — they receive full context on every call.
-See [docs/architecture.md](docs/architecture.md) for the full backend system design document.
+See [docs/architecture.md](docs/architecture.md) for the full system design document.
+
+---
 
 ## 📁 Project Structure
 
@@ -54,11 +65,14 @@ See [docs/architecture.md](docs/architecture.md) for the full backend system des
 │   └── writer.py         # WriterAgent: LLM streaming output
 ├── models/
 │   └── schemas.py        # Pydantic models (API requests, Steps, Agents)
+├── docs/                 # Documentation (Architecture, Post-mortem)
 ├── api.py                # FastAPI backend endpoints and SSE streaming
 ├── main.py               # Legacy CLI entry point
 ├── config.py             # Configuration (env vars, constants)
 └── requirements.txt      # Python dependencies
 ```
+
+---
 
 ## 🚀 Quick Start
 
@@ -71,7 +85,7 @@ cd "AGENTIC AI ASSIGNMENT"
 # Install backend dependencies
 pip install -r requirements.txt
 
-# Set up API Key
+# Set up API Key (Requires OpenRouter)
 cp .env.example .env
 # Edit .env and paste your OpenRouter API key
 ```
@@ -104,15 +118,7 @@ npm run dev
 
 Open your browser to `http://localhost:3000` to access the Zyro interface!
 
-## 🧪 Running Tests (Backend)
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with asyncio mode
-pytest tests/ -v --asyncio-mode=auto
-```
+---
 
 ## 🔧 Technology Stack
 
@@ -127,15 +133,16 @@ pytest tests/ -v --asyncio-mode=auto
 | **LLM Backend** | OpenRouter API | Multi-model gateway, free tier |
 | **Web Search** | duckduckgo-search | Free, no API key |
 
-### What We Don't Use
+---
 
-**No LangChain, AutoGen, CrewAI, or any black-box agent framework.** All orchestration, decomposition, routing, batching, and failure handling logic is written from scratch to demonstrate understanding of what happens under the hood.
+## 📄 Deliverables & Documentation
 
-## 📄 Documentation
+- [System Architecture](docs/architecture.md) — System design document covering architecture and data flow.
+- [Post-Mortem](docs/post_mortem.md) — Reflection on scaling issues, design changes, and explicit trade-offs.
+- [Sequence Diagrams](docs/sequence_diagram.md) — Mermaid diagrams for all flows.
 
-- [System Architecture](docs/architecture.md) — Full design document with diagrams
-- [Sequence Diagrams](docs/sequence_diagram.md) — Mermaid diagrams for all flows
-- [Post-Mortem](docs/post_mortem.md) — Scaling issues, design changes, trade-offs
+**Video Demonstration:**
+*(Please insert link to the 3-5 minute explanation video demonstrating the system running and showing a failure case here)*
 
 ## 📝 License
 

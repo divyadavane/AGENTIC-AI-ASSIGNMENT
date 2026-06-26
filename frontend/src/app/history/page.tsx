@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Brain, ArrowLeft, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, CheckCircle, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 

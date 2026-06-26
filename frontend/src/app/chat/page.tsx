@@ -596,7 +596,7 @@ function ChatInterface() {
         }
       }
 
-    } catch (err) {
+    } catch (_err) {
       addLog(sessionId, `Failed to connect to orchestrator API.`);
       updateSession(sessionId, { isExecuting: false, status: "error" });
       addToast("Failed to connect to backend", "error");

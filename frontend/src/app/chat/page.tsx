@@ -580,7 +580,7 @@ function ChatInterface() {
                 if (data.status === "success") {
                    addLog(sessionId, `[${data.agent}] Step ${data.step_id} completed in ${data.duration_ms}ms`);
                 } else if (data.status === "failed") {
-                   addLog(sessionId, `[${data.agent}] Step ${data.step_id} FAILED: ${data.error}`);
+                   addLog(sessionId, `[${data.agent}] Step ${data.step_id} completed with errors: ${data.error}`);
                 }
               } else if (event === "error") {
                 addLog(sessionId, `ERROR: ${data.error}`);
@@ -608,7 +608,7 @@ function ChatInterface() {
       case "analyzer": return <Database {...props} />;
       case "writer": return <PenTool {...props} />;
       case "coder": return <Code {...props} />;
-      default: return <Brain {...props} />;
+      default: return <img src="/logo.png" alt="Zyro Logo" className={props.className} style={{ width: '1em', height: '1em', objectFit: 'contain' }} />;
     }
   };
 
@@ -647,9 +647,7 @@ function ChatInterface() {
             {/* Sidebar Header */}
             <div className="p-4 border-b border-slate-800/50">
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-gradient-to-br from-emerald-500/20 to-blue-500/20 p-2.5 rounded-xl border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                  <Brain className="w-5 h-5 text-emerald-400" />
-                </div>
+                <img src="/logo.png" alt="Zyro Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]" />
                 <div>
                   <span className="font-bold text-white tracking-tight block">Zyro Agent</span>
                   <span className="text-[10px] text-emerald-500/70 font-mono uppercase tracking-wider">v2.0 • AI Pipeline</span>
@@ -828,9 +826,7 @@ function ChatInterface() {
                   {/* Animated gradient orb */}
                   <div className="relative mb-8">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/30 to-blue-500/30 rounded-3xl blur-2xl animate-pulse"></div>
-                    <div className="relative w-24 h-24 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 rounded-3xl border border-emerald-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.15)]">
-                      <Brain className="w-12 h-12 text-emerald-400" />
-                    </div>
+                    <img src="/logo.png" alt="Zyro Logo" className="w-24 h-24 object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)] relative z-10" />
                   </div>
 
                   <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">
@@ -863,7 +859,7 @@ function ChatInterface() {
                   {/* Suggestion Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
                     {[
-                      { text: "Compare Transformer models and SSMs", icon: <Brain className="w-4 h-4" /> },
+                      { text: "Compare Transformer models and SSMs", icon: <img src="/logo.png" alt="Zyro Logo" className="w-4 h-4 object-contain" /> },
                       { text: "Analyze the latest trends in renewable energy", icon: <Sparkles className="w-4 h-4" /> },
                       { text: "Write a guide on setting up a Next.js app", icon: <Code className="w-4 h-4" /> },
                       { text: "Explain quantum computing simply", icon: <BookOpen className="w-4 h-4" /> },
@@ -896,7 +892,7 @@ function ChatInterface() {
                 >
                   {msg.role === "assistant" && (
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500/20 to-blue-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-1 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                      <Brain className="w-4 h-4 text-emerald-400" />
+                      <img src="/logo.png" alt="Zyro Logo" className="w-5 h-5 object-contain" />
                     </div>
                   )}
                   
@@ -1006,7 +1002,7 @@ function ChatInterface() {
                   className="flex gap-3 justify-start"
                 >
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500/20 to-blue-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-1">
-                    <Brain className="w-4 h-4 text-emerald-400" />
+                    <img src="/logo.png" alt="Zyro Logo" className="w-5 h-5 object-contain" />
                   </div>
                   
                   <div className="flex flex-col gap-1 max-w-[85%] items-start w-full">
@@ -1168,7 +1164,7 @@ function ChatInterface() {
                   <div className="flex items-center gap-2 bg-emerald-950/30 rounded-lg px-3 py-2 border border-emerald-500/20">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                     <span className="text-xs font-mono text-emerald-400">
-                      {Object.values(activeSession.results).filter(r => r.status === "success").length} done
+                      {Object.values(activeSession.results).filter(r => r.status === "success" || r.status === "failed").length} completed
                     </span>
                   </div>
                   {Object.values(activeSession.results).some(r => r.status === "running") && (

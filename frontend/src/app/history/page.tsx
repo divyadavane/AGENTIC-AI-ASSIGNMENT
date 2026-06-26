@@ -80,7 +80,7 @@ export default function HistoryPage() {
             <div className="text-center text-slate-500 font-mono animate-pulse mt-20">Loading history...</div>
           ) : history.length === 0 ? (
             <div className="text-center text-slate-500 mt-20 p-12 border border-slate-800 rounded-2xl bg-[#0a0a0a]/50">
-              <Brain className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+              <img src="/logo.png" alt="Zyro Logo" className="w-16 h-16 mx-auto mb-4 object-contain opacity-80" />
               <p className="text-lg">No pipeline executions yet.</p>
               <button 
                 onClick={() => router.push("/")}

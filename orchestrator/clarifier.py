@@ -20,15 +20,25 @@ Your available agents can:
 1. Search the web and Wikipedia
 2. Analyze and process text
 3. Write final comprehensive reports
+4. Write code, scripts, and software programs
 
 If the user's prompt is highly vague, ambiguous, or lacks crucial context (e.g., "Research Apple" - fruit or company?), you must ask a clarifying question.
 If the user's prompt is specific enough to run a web search and analysis (e.g., "Research Apple's recent earnings"), you must execute.
+
+CRITICAL: When you decide to execute, the "task" field MUST be a COMPLETE, SELF-CONTAINED description that synthesizes the ENTIRE conversation history into one clear task. Do NOT just use the user's last message — combine the original request with any clarifications they provided.
+
+For example, if the conversation is:
+  User: "Write a guide on setting up a Next.js app"
+  Assistant: "Would you like it for e-commerce, blog, or general web development?"
+  User: "web development"
+Then the task MUST be: "Write a comprehensive guide on setting up a Next.js app for general web development"
+NOT just "web development" or something unrelated.
 
 Return a JSON object with this exact structure:
 {
     "action": "question" | "execute",
     "question": "Your clarifying question here (if action is question)",
-    "task": "The fully detailed task to execute (if action is execute)"
+    "task": "The COMPLETE, FULLY DETAILED task to execute, synthesizing the entire conversation (if action is execute)"
 }"""
 
     def __init__(self):
@@ -68,8 +78,14 @@ Return a JSON object with this exact structure:
             
         except Exception as e:
             # Fallback to execution if LLM fails formatting
-            task = chat_history[-1]["content"] if chat_history else ""
-            if isinstance(task, list):
-                # Extract the text string from the multimodal payload list
-                task = next((item["text"] for item in task if item.get("type") == "text"), "")
+            # Synthesize ALL user messages to preserve full context
+            user_messages = []
+            for msg in chat_history:
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    # Extract text from multimodal payload
+                    content = next((item["text"] for item in content if item.get("type") == "text"), "")
+                if msg.get("role") == "user" and content:
+                    user_messages.append(content)
+            task = " — ".join(user_messages) if user_messages else ""
             return ClarifierResult(action="execute", task=task)

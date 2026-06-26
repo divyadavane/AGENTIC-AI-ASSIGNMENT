@@ -28,11 +28,10 @@ export default function Home() {
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="max-w-3xl w-full flex flex-col items-center relative z-10 text-center"
       >
-        <div className="bg-gradient-to-br from-emerald-500/20 to-blue-500/20 p-4 rounded-3xl border border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.2)] mb-8 relative group">
-          <div className="absolute inset-0 bg-emerald-500/20 rounded-3xl blur-xl group-hover:bg-emerald-400/30 transition-all duration-700"></div>
-          <Brain className="w-12 h-12 text-emerald-400 relative z-10" />
+        <div className="mb-8 relative group inline-block">
+          <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-3xl group-hover:bg-emerald-400/30 transition-all duration-700"></div>
+          <img src="/logo.png" alt="Zyro Logo" className="w-24 h-24 relative z-10 object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]" />
         </div>
-
         <h1 className="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-emerald-100 to-emerald-400 tracking-tight mb-6">
           Zyro
         </h1>
